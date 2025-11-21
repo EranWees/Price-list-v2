@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eran Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    html,
+    body,
+    #root {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    /* Page Transitions */
+    @keyframes pageFadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes pageFadeOut {
+      from {
+        opacity: 1;
+      }
+
+      to {
+        opacity: 0;
+      }
+    }
+
+    .page-fade-in {
+      animation: pageFadeIn 0.3s ease-out forwards;
+    }
+
+    .page-fade-out {
+      animation: pageFadeOut 0.3s ease-in forwards;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-fadeInUp {
+      opacity: 0;
+      /* Start hidden */
+      animation: fadeInUp 0.5s ease-out forwards;
+    }
+
+    /* Added for success overlay */
+    @keyframes fadeInOverlay {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    .animate-fadeIn-overlay {
+      animation: fadeInOverlay 0.3s ease-out forwards;
+    }
+
+    @keyframes scaleIn {
+      from {
+        transform: scale(0.8);
+        opacity: 0;
+      }
+
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .animate-scaleIn {
+      animation: scaleIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+
+    @keyframes checkmarkPop {
+      0% {
+        transform: scale(0);
+      }
+
+      70% {
+        transform: scale(1.2);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    .animate-checkmark-pop {
+      animation: checkmarkPop 0.4s ease-out forwards;
+    }
+
+    /* Custom scrollbar hiding */
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      /* IE and Edge */
+      scrollbar-width: none;
+      /* Firefox */
+    }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "@google/genai": "https://esm.run/@google/genai"
+  }
+}
+</script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel" data-type="module">
+    // --- IMPORTS ---
+    import { GoogleGenAI } from "@google/genai";
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+
+    const { useState, useEffect, useContext, createContext, useMemo, useRef } = React;
+
+    // --- TYPES ---
+    const Page = {
+      Welcome: 0,
+      Home: 1,
+      Services: 2,
+      About: 3,
+      Photography: 4,
+      Reels: 5,
+      Portraits: 6,
+    };
+
+    // --- THEME CONTEXT ---
+    const ThemeContext = createContext(undefined);
+
+    const ThemeProvider = ({ children }) => {
+      const [theme, setTheme] = useState(() => {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+          return savedTheme;
+        }
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+          return 'light';
+        }
+        return 'dark';
+      });
+
+      useEffect(() => {
+        const root = window.document.documentElement;
+        if (theme === 'dark') {
+          root.classList.add('dark');
+        } else {
+          root.classList.remove('dark');
+        }
+        localStorage.setItem('theme', theme);
+      }, [theme]);
+
+      const toggleTheme = () => {
+        setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+      };
+
+      return (
+        <ThemeContext.Provider value={{ theme, toggleTheme }}>
+          {children}
+        </ThemeContext.Provider>
+      );
+    };
+
+    const useTheme = () => {
+      const context = useContext(ThemeContext);
+      if (context === undefined) {
+        throw new Error('useTheme must be used within a ThemeProvider');
+      }
+      return context;
+    };
+
+    // --- COMPONENTS ---
+
+    const ThemeToggleButton = () => {
+      const { theme, toggleTheme } = useTheme();
+      return (
+        <button
+          onClick={toggleTheme}
+          className="w-10 h-10 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+          aria-label="Toggle theme"
+        >
+          {theme === 'light' ? (
+            <i className="fas fa-moon text-lg"></i>
+          ) : (
+            <i className="fas fa-sun text-lg text-yellow-400"></i>
+          )}
+        </button>
+      );
+    };
+
+
+    const Shimmer = ({ className = '' }) => {
+      return (
+        <div className={`bg-zinc-200 dark:bg-zinc-800 animate-pulse ${className}`} />
+      );
+    };
+
+    const WelcomePage = ({ onNavigate }) => {
+      return (
+        <div
+          className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-cover bg-center"
+          style={{ backgroundImage: "url('https://i.ibb.co/TDsNtq2Z/Back.jpg')" }}
+        >
+          <div className="absolute inset-0 bg-black/50"></div>
+          <div className="relative z-10 flex flex-col items-center justify-center">
+            <div className="w-32 h-32 p-3 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center shadow-2xl mb-6">
+              <img
+                src="https://i.ibb.co/vvrSRLvz/Eran-logo-l.png"
+                alt="Eran Studio Logo"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <h1 className="text-4xl font-bold text-white tracking-wider mb-2">
+              Eran Studio
+            </h1>
+            <p className="text-lg text-gray-200 mb-10">
+              Beautiful & Emotive
+            </p>
+
+            <button
+              onClick={() => onNavigate(Page.Home)}
+              className="bg-blue-600 text-white text-lg font-semibold w-full max-w-xs py-4 rounded-xl shadow-lg transition-all duration-300 hover:bg-blue-700 hover:shadow-blue-500/30 transform hover:scale-105"
+            >
+              Enter Studio
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    const AboutPage = () => {
+      return (
+        <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
+          <div className="w-full lg:w-1/2 rounded-2xl overflow-hidden shadow-2xl">
+            <img src="https://i.ibb.co/WWstFCM4/IMG-9039.jpg" alt="Eran Studio Photography" className="w-full h-auto object-cover" />
+          </div>
+          <div className="w-full lg:w-1/2 bg-white dark:bg-[#1C1C1E] rounded-2xl p-8">
+            <h1 className="text-3xl font-bold text-zinc-900 dark:text-white mb-2">About Us</h1>
+            <p className="text-lg font-semibold text-blue-500 dark:text-blue-400 mb-6">Beautiful & Emotive</p>
+            <div className="text-left space-y-4 text-zinc-600 dark:text-gray-300">
+              <h2 className="text-xl font-semibold text-zinc-900 dark:text-white">Our Approach: Capturing Soul & Story</h2>
+              <p className="leading-relaxed">
+                At Eran Studio, every frame tells a story. We bring heart, vision, and soul into every photograph, reel, and canvas we create. With years of experience behind the lens, we are drawn to the moments that feel natural, raw, and full of life — from quiet, intimate emotions to the vibrant energy of a lively scene.
+              </p>
+              <p className="leading-relaxed">
+                We capture the full story of your experience so that it feels effortless, genuine, and true to you. Our work balances beautifully composed, editorial styling with authentic moments that reflect the real you.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const PhotographyBookingPage = ({ order, setOrder, onComplete }) => {
+      const SESSION_TYPES = {
+        '1-2': { type: '1-2', icon: "fa-user", title: "1-2 People", fee: 2000 },
+        '3-7': { type: '3-7', icon: "fa-users", title: "3-7 People", fee: 3000 },
+      };
+      const BASE_PRICE_PER_PICTURE = 2000;
+      const SESSION_TIER_PICS = 10;
+      const SESSION_TIER_PRICE = 18000;
+      const SESSION_PLUS_TIER_PICS = 25;
+      const SESSION_PLUS_TIER_PRICE = 45000;
+      const EXPRESS_SURCHARGE = { '24hrs': 3000, '12hrs': 4500, '6hrs': 6000 };
+
+      const STEPS = [{ number: 1, title: 'Session' }, { number: 2, title: 'Options' }, { number: 3, title: 'Summary' }];
+
+      const [currentStep, setCurrentStep] = useState(1);
+      const [showSuccess, setShowSuccess] = useState(false);
+      const [showConfirmModal, setShowConfirmModal] = useState(false);
+      const [showExpress, setShowExpress] = useState(false);
+
+      const costDetails = useMemo(() => {
+        const { peopleCount, normalPictures, expressPictures } = order;
+
+        let standardPicturesCost = 0;
+        let tierInfo;
+        let tierBadge = '';
+
+        if (normalPictures >= SESSION_PLUS_TIER_PICS) {
+          tierInfo = { name: 'Session Plus', icon: 'fa-crown', color: 'text-yellow-400', bgColor: 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20', borderColor: 'border-yellow-400' };
+          standardPicturesCost = SESSION_PLUS_TIER_PRICE + (normalPictures - SESSION_PLUS_TIER_PICS) * BASE_PRICE_PER_PICTURE;
+          tierBadge = 'BEST VALUE';
+        } else if (normalPictures >= SESSION_TIER_PICS) {
+          tierInfo = { name: 'Session', icon: 'fa-star', color: 'text-purple-500', bgColor: 'bg-gradient-to-r from-purple-50 to-fuchsia-50 dark:from-purple-900/20 dark:to-fuchsia-900/20', borderColor: 'border-purple-500' };
+          standardPicturesCost = SESSION_TIER_PRICE + (normalPictures - SESSION_TIER_PICS) * BASE_PRICE_PER_PICTURE;
+          tierBadge = 'POPULAR';
+        } else {
+          tierInfo = { name: 'Standard', icon: 'fa-image', color: 'text-blue-500', bgColor: 'bg-white dark:bg-[#1C1C1E]', borderColor: 'border-transparent' };
+          standardPicturesCost = normalPictures * BASE_PRICE_PER_PICTURE;
+        }
+
+        if (normalPictures === SESSION_TIER_PICS) {
+          standardPicturesCost = SESSION_TIER_PRICE;
+        }
+        if (normalPictures === SESSION_PLUS_TIER_PICS) {
+          standardPicturesCost = SESSION_PLUS_TIER_PRICE;
+        }
+
+        const totalExpressPictures = Object.values(expressPictures).reduce((a, b) => a + b, 0);
+        // Express pictures cost is now fully covered by the surcharge price, no base price added
+        const expressPicturesCost = 0;
+
+        let expressSurchargeTotal = 0;
+        for (const key of Object.keys(expressPictures)) {
+          expressSurchargeTotal += expressPictures[key] * EXPRESS_SURCHARGE[key];
+        }
+
+        const totalPictures = normalPictures + totalExpressPictures;
+        const sessionFee = SESSION_TYPES[peopleCount].fee;
+
+        if (totalPictures === 0) {
+          return {
+            total: sessionFee, sessionFee: sessionFee, standardPicturesCost: 0, expressPicturesCost: 0,
+            expressSurchargeTotal: 0, tierInfo: { name: 'Standard', icon: 'fa-image', bgColor: 'bg-white dark:bg-[#1C1C1E]', borderColor: 'border-transparent' },
+            totalExpressPictures: 0, totalPictures: 0, tierBadge: ''
+          };
+        }
+
+        const total = sessionFee + standardPicturesCost + expressPicturesCost + expressSurchargeTotal;
+
+        return { total, sessionFee, standardPicturesCost, expressPicturesCost, expressSurchargeTotal, tierInfo, totalExpressPictures, totalPictures, tierBadge };
+      }, [order]);
+
+      const displayTotal = useMemo(() => {
+        const { total, sessionFee } = costDetails;
+        if (currentStep < 3) {
+          return total - sessionFee;
+        }
+        return total;
+      }, [costDetails, currentStep]);
+
+      const StepsIndicator = ({ currentStep, steps, setCurrentStep }) => (
+        <div className="w-full flex items-center justify-center mb-10 px-4">
+          {steps.map((step, index) => (
+            <React.Fragment key={step.number}>
+              <div className="flex items-center flex-col cursor-pointer" onClick={() => setCurrentStep(step.number)}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${currentStep >= step.number ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600'}`}>
+                  {currentStep > step.number ? <i className="fas fa-check"></i> : step.number}
+                </div>
+                <p className={`mt-2 text-sm font-semibold text-center ${currentStep >= step.number ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 dark:text-gray-400'}`}>{step.title}</p>
+              </div>
+              {index < steps.length - 1 && (
+                <div className={`flex-1 h-1 mx-2 sm:mx-4 rounded ${currentStep > index + 1 ? 'bg-blue-600' : 'bg-zinc-200 dark:bg-zinc-700'}`}></div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      );
+
+      const QuantityControl = ({ value, onIncrease, onDecrease }) => (
+        <div className="flex items-center gap-3">
+          <button onClick={onDecrease} className="w-9 h-9 rounded-full bg-zinc-200 dark:bg-[#2C2C2E] flex items-center justify-center text-xl hover:bg-zinc-300 dark:hover:bg-gray-600 transition-colors active:scale-95">-</button>
+          <span className="text-lg font-semibold w-8 text-center">{value}</span>
+          <button onClick={onIncrease} className="w-9 h-9 rounded-full bg-zinc-200 dark:bg-[#2C2C2E] flex items-center justify-center text-xl hover:bg-zinc-300 dark:hover:bg-gray-600 transition-colors active:scale-95">+</button>
+        </div>
+      );
+
+      const handleConfirm = () => {
+        setShowConfirmModal(false);
+        if (costDetails.total <= 0) {
+          onComplete();
+          return;
+        }
+        setShowSuccess(true);
+        setTimeout(() => {
+          onComplete();
+        }, 1500);
+      };
+
+      const renderStepContent = () => {
+        switch (currentStep) {
+          case 1:
+            return <div className="animate-fadeInUp">
+              <h2 className="text-2xl font-bold text-center mb-2">Number of People</h2>
+              <p className="text-zinc-500 dark:text-gray-400 text-center mb-6">Choose the number of people for the photoshoot.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.values(SESSION_TYPES).map(session => (
+                  <div
+                    key={session.type}
+                    onClick={() => setOrder(prev => ({ ...prev, peopleCount: session.type }))}
+                    className={`relative bg-white dark:bg-[#1C1C1E] rounded-2xl p-6 text-center transition-all duration-300 cursor-pointer w-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex flex-col items-center justify-center h-64 gap-4 group ${order.peopleCount === session.type ? 'ring-2 ring-blue-600 bg-blue-50/50 dark:bg-blue-900/10' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'}`}
+                  >
+                    <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-2 transition-all duration-300 ${order.peopleCount === session.type ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 group-hover:scale-110'}`}>
+                      <i className={`fas ${session.icon} text-3xl`}></i>
+                    </div>
+                    <h3 className="text-2xl font-bold text-zinc-900 dark:text-white">{session.title}</h3>
+
+                    <div className="px-4 py-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-medium text-sm">
+                      K{session.fee.toLocaleString()}
+                    </div>
+
+                    {order.peopleCount === session.type && (
+                      <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm animate-scaleIn shadow-lg">
+                        <i className="fas fa-check"></i>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>;
+          case 2:
+            const expressOptions = [
+              { key: '24hrs', label: '24hrs Delivery', icon: 'fa-clock' },
+              { key: '12hrs', label: '12hrs Delivery', icon: 'fa-stopwatch' },
+              { key: '6hrs', label: '6hrs Delivery', icon: 'fa-running' },
+            ];
+            let progress = 0;
+            let nextTierText = '';
+            let progressColor = 'bg-blue-600';
+
+            if (order.normalPictures < SESSION_TIER_PICS) {
+              progress = (order.normalPictures / SESSION_TIER_PICS) * 100;
+              const remaining = SESSION_TIER_PICS - order.normalPictures;
+              nextTierText = `Add ${remaining} more photo${remaining > 1 ? 's' : ''} for the 'Session' discount!`;
+              progressColor = 'bg-blue-500';
+            } else if (order.normalPictures < SESSION_PLUS_TIER_PICS) {
+              progress = ((order.normalPictures - SESSION_TIER_PICS) / (SESSION_PLUS_TIER_PICS - SESSION_TIER_PICS)) * 100;
+              const remaining = SESSION_PLUS_TIER_PICS - order.normalPictures;
+              nextTierText = `Add ${remaining} more photo${remaining > 1 ? 's' : ''} to unlock 'Session Plus'!`;
+              progressColor = 'bg-purple-500';
+            } else {
+              progress = 100;
+              nextTierText = "You've unlocked the top tier package!";
+              progressColor = 'bg-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.6)]';
+            }
+
+            const isSessionPlus = order.normalPictures >= SESSION_PLUS_TIER_PICS;
+
+            return <div className="animate-fadeInUp space-y-6">
+              <h2 className="text-2xl font-bold text-center mb-2">Build Your Package</h2>
+              <p className="text-zinc-500 dark:text-gray-400 text-center mb-6">Add standard or express photos to your session.</p>
+
+              <div className={`rounded-2xl p-6 shadow-lg transition-all duration-500 ${costDetails.tierInfo.bgColor} border-2 ${costDetails.tierInfo.borderColor} ${isSessionPlus ? 'shadow-yellow-500/20 scale-[1.02] ring-1 ring-yellow-400/50' : ''}`}>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className={`font-bold text-lg flex items-center gap-2 ${costDetails.tierInfo.color}`}>
+                        <i className={`fas ${costDetails.tierInfo.icon} ${isSessionPlus ? 'animate-bounce' : ''}`}></i>
+                        {costDetails.tierInfo.name}
+                      </h3>
+                      {costDetails.tierBadge && (
+                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${costDetails.tierInfo.color === 'text-yellow-400' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' : costDetails.tierInfo.color === 'text-amber-400' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'}`}>
+                          {costDetails.tierBadge}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-sm text-zinc-500 dark:text-gray-400">
+                        {order.normalPictures >= SESSION_TIER_PICS ? `${order.normalPictures} photos included` : `K${BASE_PRICE_PER_PICTURE.toLocaleString()} per photo`}
+                      </span>
+                    </div>
+                  </div>
+                  <QuantityControl value={order.normalPictures} onIncrease={() => setOrder(p => ({ ...p, normalPictures: p.normalPictures + 1 }))} onDecrease={() => setOrder(p => ({ ...p, normalPictures: Math.max(0, p.normalPictures - 1) }))} />
+                </div>
+                {order.normalPictures < SESSION_PLUS_TIER_PICS && (
+                  <div className="mt-4">
+                    <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
+                      <div className={`${progressColor} h-2 rounded-full transition-all duration-300`} style={{ width: `${progress}%` }}></div>
+                    </div>
+                    <p className="text-xs text-zinc-500 dark:text-gray-400 mt-2 text-center">{nextTierText}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-6 shadow-lg">
+                <button
+                  onClick={() => setShowExpress(!showExpress)}
+                  className="w-full flex items-center justify-between font-bold text-lg mb-4 group"
+                >
+                  <div className="flex items-center gap-2">
+                    <i className="fas fa-rocket text-purple-500"></i>
+                    <span>Express Delivery</span>
+                  </div>
+                  <i className={`fas fa-chevron-down transition-transform duration-300 ${showExpress ? 'rotate-180' : ''} text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300`}></i>
+                </button>
+
+                <div className={`transition-all duration-300 overflow-hidden ${showExpress ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                  <div className="space-y-4 pb-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {expressOptions.map(opt => (
+                        <div key={opt.key} className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 ${order.expressPictures[opt.key] > 0 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/10 shadow-md' : 'border-transparent bg-zinc-50 dark:bg-zinc-800/50'}`}>
+                          <div className={`mb-3 w-12 h-12 rounded-full flex items-center justify-center ${order.expressPictures[opt.key] > 0 ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400'}`}>
+                            <i className={`fas ${opt.icon} text-xl`}></i>
+                          </div>
+                          <span className="font-bold text-sm mb-1 text-center">{opt.label}</span>
+                          <span className="text-xs text-zinc-500 dark:text-gray-400 mb-4">K{EXPRESS_SURCHARGE[opt.key].toLocaleString()} / photo</span>
+                          <QuantityControl
+                            value={order.expressPictures[opt.key]}
+                            onIncrease={() => setOrder(p => ({ ...p, expressPictures: { ...p.expressPictures, [opt.key]: p.expressPictures[opt.key] + 1 } }))}
+                            onDecrease={() => setOrder(p => ({ ...p, expressPictures: { ...p.expressPictures, [opt.key]: Math.max(0, p.expressPictures[opt.key] - 1) } }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>;
+          case 3:
+            const { total, sessionFee, standardPicturesCost, expressPicturesCost, expressSurchargeTotal, tierInfo, totalExpressPictures, totalPictures } = costDetails;
+
+            if (totalPictures === 0) {
+              return (
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-6 shadow-lg animate-fadeInUp">
+                  <h3 className="text-2xl font-bold text-center mb-5">Order Summary</h3>
+                  <div className="space-y-3 text-zinc-600 dark:text-gray-300">
+
+                  </div>
+                  <div className="flex justify-between text-xl font-bold mt-5 pt-5 border-t-2 border-zinc-200 dark:border-gray-700">
+                    <span>Grand Total:</span><span>K{total.toLocaleString()}</span>
+                  </div>
+                </div>
+              );
+            }
+
+            return <div className="w-full max-w-md mx-auto animate-fadeInUp">
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-8 shadow-xl border border-zinc-100 dark:border-zinc-800">
+                <h3 className="text-2xl font-bold text-center mb-8 text-zinc-900 dark:text-white">Order Summary</h3>
+
+                <div className="space-y-6">
+                  {/* Session Fee */}
+                  {sessionFee > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-zinc-600 dark:text-zinc-300">Session Fee</span>
+                      <span className="font-semibold text-zinc-900 dark:text-white">K{sessionFee.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {/* Photos Cost */}
+                  {standardPicturesCost > 0 &&
+                    <div className="flex justify-between items-center">
+                      <div className="flex flex-col">
+                        <span className="text-zinc-600 dark:text-zinc-300">{tierInfo.name} Photos</span>
+                        <span className="text-sm text-zinc-400">({order.normalPictures} photos)</span>
+                      </div>
+                      <span className="font-semibold text-zinc-900 dark:text-white">K{standardPicturesCost.toLocaleString()}</span>
+                    </div>
+                  }
+
+                  {/* Express Cost */}
+                  {expressSurchargeTotal > 0 &&
+                    <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-zinc-600 dark:text-zinc-300">Express Delivery</span>
+                        <span className="font-semibold text-zinc-900 dark:text-white">K{expressSurchargeTotal.toLocaleString()}</span>
+                      </div>
+                      <div className="space-y-1 pl-4">
+                        {Object.keys(order.expressPictures).map(key => (
+                          order.expressPictures[key] > 0 && (
+                            <div key={key} className="flex justify-between text-sm text-zinc-500 dark:text-zinc-400">
+                              <span>{order.expressPictures[key]} x {key}</span>
+                              <span>K{(order.expressPictures[key] * EXPRESS_SURCHARGE[key]).toLocaleString()}</span>
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
+                  <span className="text-lg font-medium text-zinc-500 dark:text-zinc-400">Total</span>
+                  <span className="text-3xl font-bold text-zinc-900 dark:text-white">
+                    K{total.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>;
+        }
+      };
+
+      return (
+        <div className="w-full max-w-2xl flex flex-col items-center pb-24">
+          {showConfirmModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] animate-fadeIn-overlay">
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-8 flex flex-col items-center gap-6 animate-scaleIn w-full max-w-sm mx-4">
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-white text-center">Final Confirmation</h2>
+                <p className="text-zinc-600 dark:text-gray-300 text-center">Add this photography package to your quote?</p>
+                <div className="flex justify-between w-full gap-4">
+                  <button
+                    onClick={() => setShowConfirmModal(false)}
+                    className="w-full px-6 py-3 rounded-xl font-semibold bg-zinc-200 dark:bg-[#2C2C2E] hover:bg-zinc-300 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Go Back
+                  </button>
+                  <button
+                    onClick={handleConfirm}
+                    className="w-full px-8 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                  >
+                    Yes, Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {showSuccess && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn-overlay">
+              <div className="bg-white dark:bg-[#1C1E] rounded-2xl p-8 flex flex-col items-center gap-4 animate-scaleIn shadow-2xl border border-zinc-100 dark:border-zinc-800">
+                <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl animate-checkmark-pop shadow-lg shadow-blue-500/30">
+                  <i className="fas fa-check"></i>
+                </div>
+                <p className="text-xl font-bold text-zinc-900 dark:text-white">Order Added!</p>
+              </div>
+            </div>
+          )}
+          <h1 className="text-3xl font-bold text-zinc-800 dark:text-gray-100">Photography</h1>
+          <p className="text-zinc-500 dark:text-gray-400 mb-6">Customize your session</p>
+
+          <StepsIndicator currentStep={currentStep} steps={STEPS} setCurrentStep={setCurrentStep} />
+
+          <div className="w-full min-h-[300px]">{renderStepContent()}</div>
+          <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-gray-700 flex justify-between items-center z-40">
+            <div className="font-bold text-lg">Total: K{displayTotal.toLocaleString()}</div>
+            <div className="flex items-center gap-3">
+              {currentStep > 1 && <button onClick={() => setCurrentStep(s => s - 1)} className="px-6 py-3 rounded-xl font-semibold bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-gray-600 transition-colors">Back</button>}
+              <button onClick={currentStep === 3 ? () => setShowConfirmModal(true) : () => setCurrentStep(s => s + 1)} className="px-8 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                {currentStep === 3 ? 'Confirm' : 'Next'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const ReelsBookingPage = ({ order, setOrder, onComplete }) => {
+      const [showSuccess, setShowSuccess] = useState(false);
+      const REELS_PRICING = {
+        basic: { price: 15000, title: 'Basic Reel', details: '10-15s, 48hr delivery', features: ['Simple editing', 'Basic color grading', '1 revision'], bestFor: 'Quick content, outfit showcases.' },
+        standard: { price: 25000, title: 'Standard Reel', details: '15-30s, 24hr delivery', features: ['Cinematic transitions', 'Advanced color grading', '2 revisions'], bestFor: 'Brand content, storytelling.' },
+        premium: { price: 50000, title: 'Premium Cinematic Reel', details: '30-60s, 12hr delivery', features: ['Full cinematic edit', 'Motion graphics/text', '3 revisions'], bestFor: 'Commercials, ads, artist content.' },
+      };
+
+      const total = useMemo(() => {
+        let currentTotal = 0;
+        if (order.basic) currentTotal += REELS_PRICING.basic.price;
+        if (order.standard) currentTotal += REELS_PRICING.standard.price;
+        if (order.premium) currentTotal += REELS_PRICING.premium.price;
+        return currentTotal;
+      }, [order]);
+
+      const handleSelect = (packageName) => {
+        setOrder(prev => ({ ...prev, [packageName]: !prev[packageName] }));
+      };
+
+      const handleConfirm = () => {
+        setShowSuccess(true);
+        setTimeout(() => {
+          onComplete();
+        }, 1500);
+      };
+
+      const hasSelection = total > 0;
+
+      return (
+        <div className="w-full max-w-6xl mx-auto flex flex-col items-center">
+          {showSuccess && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn-overlay">
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-8 flex flex-col items-center gap-4 animate-scaleIn">
+                <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-white text-3xl animate-checkmark-pop">
+                  <i className="fas fa-check"></i>
+                </div>
+                <p className="text-xl font-semibold text-zinc-900 dark:text-white">Order Added!</p>
+              </div>
+            </div>
+          )}
+          <h1 className="text-3xl font-bold text-zinc-800 dark:text-gray-100">Reels Service</h1>
+          <p className="text-zinc-500 dark:text-gray-400 mb-8">Choose the package that fits your needs</p>
+
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {Object.keys(REELS_PRICING).map(key => {
+              const pkg = REELS_PRICING[key];
+              const isSelected = order[key];
+              return (
+                <div key={key} onClick={() => handleSelect(key)} className={`rounded-2xl p-6 shadow-lg transition-all duration-300 cursor-pointer border-2 flex flex-col ${isSelected ? 'bg-blue-600 text-white border-blue-500' : 'bg-white dark:bg-[#1C1C1E] border-transparent hover:bg-zinc-100 dark:hover:bg-[#2C2C2E]'}`}>
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className={`text-xl font-bold ${isSelected ? 'text-white' : 'text-zinc-900 dark:text-white'}`}>{pkg.title}</h3>
+                    <span className={`text-xl font-bold ${isSelected ? 'text-white' : 'text-zinc-900 dark:text-white'}`}>K{pkg.price.toLocaleString()}</span>
+                  </div>
+                  <p className={`text-sm mb-4 ${isSelected ? 'text-blue-200' : 'text-zinc-500 dark:text-gray-400'}`}><i className="fas fa-clock mr-2"></i>{pkg.details}</p>
+                  <ul className={`space-y-1 mb-4 text-left text-sm flex-grow ${isSelected ? 'text-blue-100' : 'text-zinc-600 dark:text-gray-300'}`}>
+                    {pkg.features.map((feat, i) => <li key={i}><i className={`fas fa-check mr-2 ${isSelected ? 'text-blue-200' : 'text-gray-500'}`}></i>{feat}</li>)}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+
+          {hasSelection && (
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm border-t border-zinc-200 dark:border-gray-700 flex justify-center items-center z-40 lg:hidden">
+              <div className="bg-zinc-100 dark:bg-[#1C1C1E] rounded-xl p-2 w-full max-w-md flex justify-between items-center">
+                <div className="font-bold text-lg pl-4">Total: K{total.toLocaleString()}</div>
+                <button onClick={handleConfirm} className="px-8 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                  Confirm
+                </button>
+              </div>
+            </div>
+          )}
+
+          {hasSelection && (
+            <div className="w-full max-w-6xl mt-8 hidden lg:flex flex-col items-center">
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-6 flex justify-between items-center w-full max-w-sm">
+                <span className="text-2xl font-bold">Total: K{total.toLocaleString()}</span>
+                <button onClick={handleConfirm} className="px-8 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors text-lg">
+                  Confirm Order
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const PortraitsBookingPage = ({ order, setOrder, onComplete }) => {
+      const [showSuccess, setShowSuccess] = useState(false);
+      const PORTRAITS_PRICING = {
+        a3: { price: 20000, title: 'A3', dimensions: '30cm x 45cm', img: 'https://i.ibb.co/Qvz8Z35h/IMG-9619.jpg' },
+        a2: { price: 25000, title: 'A2', dimensions: '45cm x 60cm', img: 'https://i.ibb.co/C5R0NNNf/IMG-0255.jpg' },
+        a1: { price: 35000, title: 'A1', dimensions: '60cm x 90cm', img: 'https://i.ibb.co/SXVCKbyw/2024-12-11-17-43-IMG-2626.jpg' },
+        a0: { price: 65000, title: 'A0', dimensions: '90cm x 120cm', img: 'https://i.ibb.co/RpbJzms8/IMG-20250908-104932.jpg' },
+      };
+
+      const QuantityControl = ({ value, onIncrease, onDecrease }) => (
+        <div className="flex items-center justify-between w-full bg-zinc-200 dark:bg-[#2C2C2E] rounded-full p-1">
+          <button onClick={onDecrease} className="w-9 h-9 rounded-full bg-zinc-300 dark:bg-gray-700 flex items-center justify-center text-xl hover:bg-zinc-400 dark:hover:bg-gray-600 transition-colors active:scale-95">-</button>
+          <span className="text-lg font-semibold w-8 text-center">{value}</span>
+          <button onClick={onIncrease} className="w-9 h-9 rounded-full bg-zinc-300 dark:bg-gray-700 flex items-center justify-center text-xl hover:bg-zinc-400 dark:hover:bg-gray-600 transition-colors active:scale-95">+</button>
+        </div>
+      );
+
+      const total = useMemo(() => {
+        return Object.keys(order).reduce((acc, key) => {
+          return acc + order[key].quantity * PORTRAITS_PRICING[key].price;
+        }, 0);
+      }, [order]);
+
+      const handleQuantityChange = (size, change) => {
+        setOrder(prev => ({
+          ...prev,
+          [size]: { quantity: Math.max(0, prev[size].quantity + change) }
+        }));
+      };
+
+      const handleConfirm = () => {
+        setShowSuccess(true);
+        setTimeout(() => {
+          onComplete();
+        }, 1500);
+      };
+
+      const hasSelection = total > 0;
+
+      return (
+        <div className="w-full max-w-5xl flex flex-col items-center pb-24">
+          {showSuccess && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn-overlay">
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-8 flex flex-col items-center gap-4 animate-scaleIn">
+                <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-white text-3xl animate-checkmark-pop">
+                  <i className="fas fa-check"></i>
+                </div>
+                <p className="text-xl font-semibold text-zinc-900 dark:text-white">Order Added!</p>
+              </div>
+            </div>
+          )}
+          <h1 className="text-3xl font-bold text-zinc-800 dark:text-gray-100">Portraits (Canvas)</h1>
+          <p className="text-zinc-500 dark:text-gray-400 mb-8">Choose the canvas size for your portrait</p>
+
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {Object.keys(PORTRAITS_PRICING).map(key => {
+              const item = PORTRAITS_PRICING[key];
+              const currentOrder = order[key];
+              return (
+                <div key={key} className={`bg-white dark:bg-[#1C1C1E] rounded-2xl p-4 shadow-lg flex flex-col transition-all duration-300 border-2 ${currentOrder.quantity > 0 ? 'border-blue-500' : 'border-transparent'}`}>
+                  <div className="w-full aspect-square rounded-xl overflow-hidden mb-4">
+                    <img src={item.img} alt={`${item.title} Portrait`} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-grow">
+                    <h3 className="text-xl font-bold">{item.title}</h3>
+                    <p className="text-sm text-zinc-500 dark:text-gray-400 mb-2">{item.dimensions}</p>
+                    <p className="text-xl font-bold mb-4">K{item.price.toLocaleString()}</p>
+                  </div>
+                  <div className="mt-auto">
+                    <QuantityControl
+                      value={currentOrder.quantity}
+                      onIncrease={() => handleQuantityChange(key, 1)}
+                      onDecrease={() => handleQuantityChange(key, -1)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {hasSelection && (
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm border-t border-zinc-200 dark:border-gray-700 flex justify-between items-center z-40">
+              <div className="font-bold text-lg">Total: K{total.toLocaleString()}</div>
+              <button onClick={handleConfirm} className="px-8 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                Confirm
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const ServicesPage = ({ onNavigate, completedServices, orders }) => {
+      const [activeFilter, setActiveFilter] = useState('all');
+
+      const SESSION_FEE = { '1-2': 2000, '3-7': 3000 };
+      const BASE_PRICE_PER_PICTURE = 2000;
+      const SESSION_TIER_PICS = 10;
+      const SESSION_TIER_PRICE = 18000;
+      const SESSION_PLUS_TIER_PICS = 25;
+      const SESSION_PLUS_TIER_PRICE = 45000;
+      const EXPRESS_SURCHARGE = { '24hrs': 3000, '12hrs': 4500, '6hrs': 6000 };
+      const REELS_PRICING = { basic: 15000, standard: 25000, premium: 50000 };
+      const PORTRAITS_PRICING = { a3: 20000, a2: 25000, a1: 35000, a0: 65000 };
+
+      const ServiceCard = ({ icon, title, description, imgSrc, onClick, isSelected, style }) => (
+        <div
+          onClick={onClick}
+          className={`relative rounded-3xl w-full h-40 max-w-md cursor-pointer transition-all duration-300 overflow-hidden shadow-lg ${isSelected ? 'ring-4 ring-blue-500' : 'ring-2 ring-transparent hover:ring-2 hover:ring-gray-300 dark:hover:ring-gray-600'}`}
+          style={style}
+        >
+          <img src={imgSrc} alt={title} className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-black/20"></div>
+          <div className="relative h-full flex flex-col justify-end p-6 text-white">
+            <div className="flex items-center gap-4 mb-2">
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600' : 'bg-white/10'}`}>
+                <i className={`fas ${icon} text-2xl`}></i>
+              </div>
+              <h3 className="text-2xl font-bold">{title}</h3>
+            </div>
+            <p className={`text-sm transition-colors text-white/80`}>{description}</p>
+          </div>
+          {isSelected && (
+            <div className="absolute top-4 right-4 text-white bg-blue-600 rounded-full w-8 h-8 flex items-center justify-center">
+              <i className="fas fa-check"></i>
+            </div>
+          )}
+        </div>
+      );
+
+      const services = [
+        { page: Page.Photography, key: 'photography', icon: 'fa-camera', title: 'Photography', description: 'Professional photo sessions', imgSrc: 'https://i.ibb.co/WWstFCM4/IMG-9039.jpg' },
+        { page: Page.Reels, key: 'reels', icon: 'fa-film', title: 'Reels', description: 'Creative video content', imgSrc: 'https://i.ibb.co/BHJYVJL3/IMG-9015.jpg' },
+        { page: Page.Portraits, key: 'portraits', icon: 'fa-palette', title: 'Portraits (Canvas)', description: 'Beautiful portrait artwork', imgSrc: 'https://i.ibb.co/Qvz8Z35h/IMG-9619.jpg' },
+      ];
+
+      const filterOptions = [
+        { key: 'all', label: 'All' },
+        { key: 'photography', label: 'Photography' },
+        { key: 'reels', label: 'Reels' },
+        { key: 'portraits', label: 'Portraits' }
+      ];
+
+      const calculateTotals = useMemo(() => {
+        let photographyTotal = 0;
+        const { photographyOrder, reelsOrder, portraitsOrder } = orders;
+
+        if (completedServices.includes('photography')) {
+          const { peopleCount, normalPictures, expressPictures } = photographyOrder;
+          const totalExpressPictures = Object.values(expressPictures).reduce((a, b) => a + b, 0);
+          const totalPictures = normalPictures + totalExpressPictures;
+
+          if (totalPictures > 0) {
+            const sessionFee = SESSION_FEE[peopleCount];
+
+            let standardPicturesCost = 0;
+            if (normalPictures >= SESSION_PLUS_TIER_PICS) {
+              standardPicturesCost = SESSION_PLUS_TIER_PRICE + (normalPictures - SESSION_PLUS_TIER_PICS) * BASE_PRICE_PER_PICTURE;
+            } else if (normalPictures >= SESSION_TIER_PICS) {
+              standardPicturesCost = SESSION_TIER_PRICE + (normalPictures - SESSION_TIER_PICS) * BASE_PRICE_PER_PICTURE;
+            } else {
+              standardPicturesCost = normalPictures * BASE_PRICE_PER_PICTURE;
+            }
+            if (normalPictures === SESSION_TIER_PICS) standardPicturesCost = SESSION_TIER_PRICE;
+            if (normalPictures === SESSION_PLUS_TIER_PICS) standardPicturesCost = SESSION_PLUS_TIER_PRICE;
+
+            // Express pictures cost is now fully covered by the surcharge price
+            const expressPicturesCost = 0;
+
+            const expressSurchargeTotal = Object.keys(expressPictures).reduce((total, key) => {
+              return total + expressPictures[key] * EXPRESS_SURCHARGE[key];
+            }, 0);
+
+            photographyTotal = sessionFee + standardPicturesCost + expressPicturesCost + expressSurchargeTotal;
+          } else {
+            photographyTotal = SESSION_FEE[peopleCount];
+          }
+        }
+
+        let reelsTotal = 0;
+        if (completedServices.includes('reels')) {
+          if (reelsOrder.basic) reelsTotal += REELS_PRICING.basic;
+          if (reelsOrder.standard) reelsTotal += REELS_PRICING.standard;
+          if (reelsOrder.premium) reelsTotal += REELS_PRICING.premium;
+        }
+
+        let portraitsTotal = 0;
+        if (completedServices.includes('portraits')) {
+          portraitsTotal += portraitsOrder.a3.quantity * PORTRAITS_PRICING.a3;
+          portraitsTotal += portraitsOrder.a2.quantity * PORTRAITS_PRICING.a2;
+          portraitsTotal += portraitsOrder.a1.quantity * PORTRAITS_PRICING.a1;
+          portraitsTotal += portraitsOrder.a0.quantity * PORTRAITS_PRICING.a0;
+        }
+
+        const grandTotal = photographyTotal + reelsTotal + portraitsTotal;
+        return { photographyTotal, reelsTotal, portraitsTotal, grandTotal };
+      }, [completedServices, orders]);
+
+      const { photographyTotal, reelsTotal, portraitsTotal, grandTotal } = calculateTotals;
+
+      const generateWhatsAppMessage = () => {
+        let message = `Hello Eran Studio! I'm interested in multiple services.%0A%0A*Complete Order Details:*%0A%0A`;
+        if (grandTotal === 0) {
+          return `Hello Eran Studio! I'm interested in your services.`;
+        }
+
+        if (photographyTotal > 0) {
+          const { peopleCount, normalPictures, expressPictures } = orders.photographyOrder;
+          message += `*Photography (${peopleCount} People):*%0A`;
+          if (normalPictures > 0) {
+            let tierName = 'Standard';
+            if (normalPictures >= 25) tierName = 'Session Plus';
+            else if (normalPictures >= 10) tierName = 'Session';
+            message += `- ${tierName} Package (${normalPictures} photos)%0A`;
+          }
+          const totalExpress = Object.values(expressPictures).reduce((a, b) => a + b, 0);
+          if (totalExpress > 0) {
+            message += `- ${totalExpress} Express Photos%0A`;
+          }
+          message += `Subtotal: K${photographyTotal.toLocaleString()}%0A%0A`;
+        }
+
+        if (reelsTotal > 0) {
+          message += `*Reels:*%0A`;
+          if (orders.reelsOrder.basic) message += `- Basic Reel: K${REELS_PRICING.basic.toLocaleString()}%0A`;
+          if (orders.reelsOrder.standard) message += `- Standard Reel: K${REELS_PRICING.standard.toLocaleString()}%0A`;
+          if (orders.reelsOrder.premium) message += `- Premium Reel: K${REELS_PRICING.premium.toLocaleString()}%0A`;
+          message += `Subtotal: K${reelsTotal.toLocaleString()}%0A%0A`;
+        }
+
+        if (portraitsTotal > 0) {
+          message += `*Portraits:*%0A`;
+          const { a3, a2, a1, a0 } = orders.portraitsOrder;
+          if (a3.quantity > 0) message += `- ${a3.quantity} x A3 Canvas: K${(a3.quantity * PORTRAITS_PRICING.a3).toLocaleString()}%0A`;
+          if (a2.quantity > 0) message += `- ${a2.quantity} x A2 Canvas: K${(a2.quantity * PORTRAITS_PRICING.a2).toLocaleString()}%0A`;
+          if (a1.quantity > 0) message += `- ${a1.quantity} x A1 Canvas: K${(a1.quantity * PORTRAITS_PRICING.a1).toLocaleString()}%0A`;
+          if (a0.quantity > 0) message += `- ${a0.quantity} x A0 Canvas: K${(a0.quantity * PORTRAITS_PRICING.a0).toLocaleString()}%0A`;
+          message += `Subtotal: K${portraitsTotal.toLocaleString()}%0A%0A`;
+        }
+
+        message += `*Grand Total: K${grandTotal.toLocaleString()}*%0A%0A`;
+        message += `Please let me know the next steps to book these services.`;
+        return message;
+      };
+
+      const sendOverallQuote = () => {
+        const message = generateWhatsAppMessage();
+        window.open(`https://wa.me/265997761194?text=${message}`, '_blank');
+      };
+
+      const filteredServices = services.filter(service =>
+        activeFilter === 'all' || service.key === activeFilter
+      );
+
+      return (
+        <div className="w-full">
+          <div className="text-left w-full mb-4">
+            <h1 className="text-3xl font-bold text-zinc-800 dark:text-gray-100">Our Services</h1>
+            <p className="text-zinc-500 dark:text-gray-400">Tap a service to customize your quote.</p>
+          </div>
+
+          <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
+            {filterOptions.map(filter => (
+              <button
+                key={filter.key}
+                onClick={() => setActiveFilter(filter.key)}
+                className={`px-4 py-2 rounded-full font-semibold text-sm transition-colors whitespace-nowrap ${activeFilter === filter.key
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                  }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-col lg:flex-row lg:items-start gap-8">
+            <div className="w-full lg:flex-1 flex flex-col gap-5">
+              {filteredServices.map((service, index) => (
+                <ServiceCard
+                  key={service.key}
+                  icon={service.icon}
+                  title={service.title}
+                  description={service.description}
+                  imgSrc={service.imgSrc}
+                  onClick={() => onNavigate(service.page)}
+                  isSelected={completedServices.includes(service.key)}
+                  style={{ animation: `fadeInUp 0.5s ${index * 100}ms ease-out forwards`, opacity: 0 }}
+                />
+              ))}
+            </div>
+
+            <div className="w-full lg:w-2/5 lg:sticky lg:top-8">
+              {completedServices.length > 0 && (
+                <div className="w-full animate-fadeInUp" style={{ animationDelay: '300ms', opacity: 0 }}>
+                  <div className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-6 shadow-lg text-left">
+                    <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-5 text-center">Quote Summary</h2>
+                    <div className="space-y-4">
+                      {photographyTotal > 0 && <div className="flex justify-between items-center text-zinc-600 dark:text-gray-300"><span><i className="fas fa-camera mr-3 text-blue-500 dark:text-blue-400"></i>Photography</span><span className="font-semibold">K{photographyTotal.toLocaleString()}</span></div>}
+                      {reelsTotal > 0 && <div className="flex justify-between items-center text-zinc-600 dark:text-gray-300"><span><i className="fas fa-film mr-3 text-blue-500 dark:text-blue-400"></i>Reels</span><span className="font-semibold">K{reelsTotal.toLocaleString()}</span></div>}
+                      {portraitsTotal > 0 && <div className="flex justify-between items-center text-zinc-600 dark:text-gray-300"><span><i className="fas fa-palette mr-3 text-blue-500 dark:text-blue-400"></i>Portraits</span><span className="font-semibold">K{portraitsTotal.toLocaleString()}</span></div>}
+                    </div>
+                    <div className="flex justify-between mt-6 text-xl font-bold border-t-2 border-zinc-200 dark:border-gray-700 pt-4">
+                      <span>Total:</span>
+                      <span>K{grandTotal.toLocaleString()}</span>
+                    </div>
+                    <button
+                      onClick={sendOverallQuote}
+                      className="w-full mt-6 bg-blue-600 text-white font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all text-lg transform hover:scale-105"
+                    >
+                      <i className="fab fa-whatsapp text-2xl"></i> Send Quote
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const HomePage = ({ onNavigate }) => {
+      const heroImageRef = useRef(null);
+      const carouselRef = useRef(null);
+      const [isLoading, setIsLoading] = useState(true);
+      const [selectedImage, setSelectedImage] = useState(null);
+      const [testimonials, setTestimonials] = useState([]);
+
+      const portfolioItems = [
+        { title: 'Portraits', imgSrc: 'https://i.ibb.co/Qvz8Z35h/IMG-9619.jpg' },
+        { title: 'Couples', imgSrc: 'https://i.ibb.co/2ZCM2Vn/IMG-9694.jpg' },
+        { title: 'Lifestyle', imgSrc: 'https://i.ibb.co/L6Vd35d/IMG-9706.jpg' },
+        { title: 'Events', imgSrc: 'https://i.ibb.co/0VdkHNmW/IMG-3622.jpg' },
+        { title: 'Candid', imgSrc: 'https://i.ibb.co/BC62wvs/IMG-9780.jpg' },
+        { title: 'Studio', imgSrc: 'https://i.ibb.co/6D0M259/IMG-9831.jpg' },
+      ];
+
+
+
+      const TestimonialCard = ({ quote, author, role, imgSrc }) => (
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-6 flex flex-col items-start gap-4 h-full shadow">
+          <i className="fas fa-quote-left text-3xl text-blue-500"></i>
+          <p className="text-zinc-600 dark:text-zinc-300 italic">"{quote}"</p>
+          <div className="flex items-center gap-3 mt-auto pt-4">
+            <img src={imgSrc} alt={author} className="w-12 h-12 rounded-full object-cover" />
+            <div>
+              <p className="font-semibold text-zinc-900 dark:text-white">{author}</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">{role}</p>
+            </div>
+          </div>
+        </div>
+      );
+
+      useEffect(() => {
+        const generateTestimonial = async (name, type) => {
+          try {
+            const apiKey = typeof process !== 'undefined' && process.env && process.env.API_KEY;
+            if (!apiKey) {
+              console.error("API_KEY environment variable not set.");
+              throw new Error("API Key not found");
+            }
+            const ai = new GoogleGenAI({ apiKey: apiKey });
+            const prompt = `Generate a short, positive testimonial for a photography studio from a client named ${name}. The service was a "${type}". The testimonial should be enthusiastic, professional, and highlight the quality of the photos and the experience. Keep it concise, around 25-30 words.`;
+            const response = await ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: prompt,
+            });
+            return response.text.trim().replace(/^"|"$/g, '');
+          } catch (error) {
+            console.error("Error generating testimonial:", error);
+            if (type.includes('Birthday')) {
+              return "The birthday shoot was absolutely fantastic! Eran Studio captured the moments perfectly. The pictures are stunning, and I couldn't be happier!";
+            }
+            return "An incredibly professional and creative experience. The team brought my brand's vision to life with amazing photos. Highly recommended!";
+          }
+        };
+
+        const fetchTestimonials = async () => {
+          setIsLoading(true);
+          const testimonial1Quote = await generateTestimonial('Giffy', 'Birthday studio shoot');
+          const testimonial2Quote = await generateTestimonial('Dir.MO', 'Brand CEO shoot');
+
+          setTestimonials([
+            {
+              quote: testimonial1Quote,
+              author: "Giffy",
+              role: "Birthday Client",
+              imgSrc: "https://i.ibb.co/nNp3DHyy/IMG-5374.png",
+            },
+            {
+              quote: testimonial2Quote,
+              author: "Dir.MO",
+              role: "Brand CEO",
+              imgSrc: "https://i.ibb.co/W4yhnWVB/4b372334-325c-4e5b-b5e8-835643ed66dc.jpg",
+            }
+          ]);
+          setIsLoading(false);
+        };
+
+        fetchTestimonials();
+      }, []);
+
+
+      useEffect(() => {
+        const scrollContainer = document.getElementById('main-scroll-container');
+        const handleScroll = () => {
+          if (scrollContainer && heroImageRef.current) {
+            const scrollTop = scrollContainer.scrollTop;
+            const parallaxOffset = scrollTop * 0.4;
+            heroImageRef.current.style.transform = `scale(1.1) translateY(${parallaxOffset}px)`;
+          }
+        };
+
+        if (scrollContainer) {
+          scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+        }
+
+        return () => {
+          if (scrollContainer) {
+            scrollContainer.removeEventListener('scroll', handleScroll);
+          }
+        };
+      }, []);
+
+      const scrollCarousel = (direction) => {
+        if (carouselRef.current) {
+          const scrollAmount = carouselRef.current.clientWidth * 0.8;
+          carouselRef.current.scrollBy({
+            left: direction === 'left' ? -scrollAmount : scrollAmount,
+            behavior: 'smooth',
+          });
+        }
+      };
+
+      return (
+        <div className="w-full flex flex-col animate-fadeInUp">
+          {selectedImage && (
+            <div
+              className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] animate-fadeIn-overlay"
+              onClick={() => setSelectedImage(null)}
+            >
+              <div className="relative w-full max-w-4xl p-4" onClick={(e) => e.stopPropagation()}>
+                <img
+                  src={selectedImage.imgSrc}
+                  alt={selectedImage.title}
+                  className="w-full h-auto max-h-[85vh] object-contain rounded-2xl animate-scaleIn"
+                />
+                <p className="text-white text-center mt-4 text-xl font-bold">{selectedImage.title}</p>
+                <button
+                  onClick={() => setSelectedImage(null)}
+                  className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center z-50 transition-colors"
+                  aria-label="Close image view"
+                >
+                  <i className="fas fa-times text-2xl"></i>
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="relative w-full h-[50vh] md:h-[60vh] rounded-3xl overflow-hidden">
+            <img
+              ref={heroImageRef}
+              src="https://i.ibb.co/WWstFCM4/IMG-9039.jpg"
+              alt="Eran Studio background"
+              className="absolute inset-0 w-full h-full object-cover scale-110 will-change-transform"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-[#0D0D0D] via-white/50 dark:via-[#0D0D0D]/50 to-transparent"></div>
+            <div className="relative h-full flex flex-col justify-end items-start p-6 md:p-10 text-zinc-900 dark:text-white">
+              <div className="w-20 h-20 p-2 mb-4 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
+                <img src="https://i.ibb.co/vvrSRLvz/Eran-logo-l.png" alt="Eran Studio Logo" className="w-full h-full object-contain" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Eran Studio</h1>
+              <p className="text-lg md:text-xl text-zinc-800 dark:text-gray-300 mb-6">Beautiful & Emotive Photography</p>
+              <button
+                onClick={() => onNavigate(Page.Services)}
+                className="bg-blue-600 text-white text-lg font-bold w-full max-w-xs py-4 rounded-xl shadow-lg transition-all duration-300 hover:bg-blue-700 transform hover:scale-105 flex items-center justify-center gap-2"
+              >
+                Explore Services <i className="fas fa-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+
+          <div className="py-8">
+            <div className="my-8 text-center max-w-3xl mx-auto">
+              <h2 className="text-3xl font-bold mb-4">Our Philosophy</h2>
+              <p className="text-lg text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                At Eran Studio, every frame tells a story. We blend editorial styling with authentic moments to capture the real you. Our passion is to create beautiful, emotive imagery that feels effortless, genuine, and timeless.
+              </p>
+            </div>
+
+            <h2 className="text-2xl font-bold mb-4">Our Work</h2>
+            <div className="relative group/carousel">
+              <div
+                ref={carouselRef}
+                className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
+              >
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="w-3/4 sm:w-1/2 md:w-1/3 lg:w-1/4 flex-shrink-0 snap-center">
+                      <Shimmer className="w-full aspect-[3/4] rounded-2xl" />
+                    </div>
+                  ))
+                ) : (
+                  portfolioItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className="relative w-3/4 sm:w-1/2 md:w-1/3 lg:w-1/4 flex-shrink-0 snap-center aspect-[3/4] rounded-2xl overflow-hidden shadow-lg group cursor-pointer"
+                      onClick={() => setSelectedImage(item)}
+                    >
+                      <img src={item.imgSrc} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+                      <p className="absolute bottom-3 left-3 text-white font-bold text-lg">{item.title}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {!isLoading && (
+                <>
+                  <button
+                    onClick={() => scrollCarousel('left')}
+                    className="absolute top-1/2 left-2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/50 dark:bg-black/50 backdrop-blur-sm flex items-center justify-center text-zinc-800 dark:text-white opacity-0 group-hover/carousel:opacity-100 transition-opacity duration-300 z-10 hover:bg-white/80 dark:hover:bg-black/80"
+                    aria-label="Scroll left"
+                  >
+                    <i className="fas fa-chevron-left"></i>
+                  </button>
+                  <button
+                    onClick={() => scrollCarousel('right')}
+                    className="absolute top-1/2 right-2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/50 dark:bg-black/50 backdrop-blur-sm flex items-center justify-center text-zinc-800 dark:text-white opacity-0 group-hover/carousel:opacity-100 transition-opacity duration-300 z-10 hover:bg-white/80 dark:hover:bg-black/80"
+                    aria-label="Scroll right"
+                  >
+                    <i className="fas fa-chevron-right"></i>
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="mt-12">
+              <h2 className="text-3xl font-bold mb-6 text-center">What Our Clients Say</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {isLoading ? (
+                  Array.from({ length: 2 }).map((_, index) => (
+                    <div key={index} className="bg-white dark:bg-[#1C1C1E] rounded-2xl p-6 shadow h-full">
+                      <Shimmer className="w-8 h-8 rounded-lg mb-4" />
+                      <Shimmer className="h-4 w-full rounded mb-2" />
+                      <Shimmer className="h-4 w-4/5 rounded mb-4" />
+                      <div className="flex items-center gap-3 mt-auto pt-4">
+                        <Shimmer className="w-12 h-12 rounded-full" />
+                        <div>
+                          <Shimmer className="h-4 w-24 rounded mb-2" />
+                          <Shimmer className="h-3 w-32 rounded" />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  testimonials.map((testimonial, index) => (
+                    <TestimonialCard
+                      key={index}
+                      quote={testimonial.quote}
+                      author={testimonial.author}
+                      role={testimonial.role}
+                      imgSrc={testimonial.imgSrc}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+
+
+          </div>
+        </div>
+      );
+    };
+
+    const BottomNavBar = ({ currentPage, onNavigate }) => {
+      const NavButton = ({ icon, isActive, onClick, label }) => {
+        return (
+          <button
+            onClick={onClick}
+            aria-label={label}
+            className={`flex flex-col items-center justify-center w-20 h-16 transition-colors duration-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-zinc-800 focus:ring-blue-400 ${isActive
+              ? 'text-blue-600 dark:text-blue-500' // active
+              : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800' // inactive
+              }`}
+          >
+            <i className={`fas ${icon} text-xl`}></i>
+            <span className="text-xs font-semibold mt-1">{label}</span>
+          </button>
+        );
+      };
+
+      return (
+        <div className="fixed bottom-0 left-0 right-0 z-50 p-4">
+          <div className="bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm rounded-3xl shadow-lg flex justify-around items-center max-w-sm mx-auto p-2 h-20">
+            <NavButton
+              icon="fa-home"
+              label="Home"
+              isActive={currentPage === Page.Home}
+              onClick={() => onNavigate(Page.Home)}
+            />
+            <NavButton
+              icon="fa-briefcase"
+              label="Services"
+              isActive={currentPage === Page.Services}
+              onClick={() => onNavigate(Page.Services)}
+            />
+            <NavButton
+              icon="fa-info-circle"
+              label="About"
+              isActive={currentPage === Page.About}
+              onClick={() => onNavigate(Page.About)}
+            />
+          </div>
+        </div>
+      );
+    };
+
+    const SideNavBar = ({ currentPage, onNavigate }) => {
+      const NavButton = ({ icon, isActive, onClick, label }) => {
+        return (
+          <button
+            onClick={onClick}
+            aria-label={label}
+            className={`flex items-center w-full p-4 rounded-lg transition-all duration-200 ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+          >
+            <i className={`fas ${icon} w-8 text-xl`}></i>
+            <span className="font-semibold">{label}</span>
+          </button>
+        );
+      };
+
+      return (
+        <nav className="w-64 bg-zinc-50 dark:bg-[#1C1C1E] p-4 flex-col h-screen hidden lg:flex shrink-0 border-r border-zinc-200 dark:border-zinc-800">
+          <div className="flex flex-col gap-2 mt-8">
+            <NavButton
+              icon="fa-home"
+              label="Home"
+              isActive={currentPage === Page.Home}
+              onClick={() => onNavigate(Page.Home)}
+            />
+            <NavButton
+              icon="fa-briefcase"
+              label="Services"
+              isActive={currentPage === Page.Services}
+              onClick={() => onNavigate(Page.Services)}
+            />
+            <NavButton
+              icon="fa-info-circle"
+              label="About"
+              isActive={currentPage === Page.About}
+              onClick={() => onNavigate(Page.About)}
+            />
+            <NavButton
+              icon="fab fa-whatsapp"
+              label="Contact"
+              isActive={false}
+              onClick={() => window.open('https://wa.me/265997761194', '_blank')}
+            />
+          </div>
+        </nav>
+      );
+    };
+
+    const Footer = ({ onNavigate }) => {
+      return (
+        <footer className="bg-zinc-50 dark:bg-[#1C1C1E] text-zinc-900 dark:text-white py-12 px-4 sm:px-8 md:px-10">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 p-1 bg-zinc-200 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
+                  <img src="https://i.ibb.co/vvrSRLvz/Eran-logo-l.png" alt="Eran Studio Logo" className="w-full h-full object-contain" />
+                </div>
+                <h2 className="text-xl font-bold">Eran Studio</h2>
+              </div>
+              <p className="text-zinc-500 dark:text-zinc-400">
+                Capturing life's most beautiful and emotive moments. We bring heart, vision, and soul into every photograph, reel, and canvas we create.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
+              <ul className="space-y-2">
+                <li><button onClick={() => onNavigate(Page.Home)} className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">Home</button></li>
+                <li><button onClick={() => onNavigate(Page.Services)} className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">Services</button></li>
+                <li><button onClick={() => onNavigate(Page.About)} className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">About Us</button></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Connect With Us</h3>
+              <ul className="space-y-2 text-zinc-500 dark:text-zinc-400">
+                <li className="flex items-center gap-2">
+                  <i className="fas fa-envelope w-4 text-center"></i>
+                  <a href="mailto:eranwees@gmail.com" className="hover:text-zinc-900 dark:hover:text-white transition-colors">eranwees@gmail.com</a>
+                </li>
+                <li className="flex items-center gap-2">
+                  <i className="fab fa-whatsapp w-4 text-center"></i>
+                  <a href="https://wa.me/265997761194" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 dark:hover:text-white transition-colors">+265 997 761 194</a>
+                </li>
+              </ul>
+              <div className="flex space-x-4 mt-4">
+                <a href="https://Facebook.com/eranwees" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"><i className="fab fa-facebook-f text-xl"></i></a>
+                <a href="https://www.instagram.com/eran_wees?igsh=MWNsenJ0dWtxYW5ybg%3D%3D&utm_source=qr" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"><i className="fab fa-instagram text-xl"></i></a>
+              </div>
+            </div>
+          </div>
+          <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-700 text-center text-zinc-500 dark:text-zinc-500">
+            <p>&copy; {new Date().getFullYear()} Eran Studio. All Rights Reserved.</p>
+          </div>
+        </footer>
+      );
+    };
+
+    const TopHeader = ({ onNavigate, onTitleClick }) => {
+      return (
+        <header className="h-16 flex items-center justify-between px-4 sm:px-8 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm sticky top-0 z-30 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
+              <img src="https://i.ibb.co/vvrSRLvz/Eran-logo-l.png" alt="Eran Studio Logo" className="w-full h-full object-contain" />
+            </div>
+            <h1
+              onClick={onTitleClick}
+              className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white whitespace-nowrap cursor-pointer hidden sm:block"
+            >
+              Eran Studio
+            </h1>
+          </div>
+          <div className="flex items-center justify-end gap-2 sm:gap-4">
+            <button
+              onClick={() => onNavigate(Page.Services)}
+              className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+            >
+              Get a Quote
+            </button>
+            <ThemeToggleButton />
+          </div>
+        </header>
+      );
+    };
+
+    // --- MAIN APP COMPONENT ---
+    const App = () => {
+      const [page, setPage] = useState(Page.Welcome);
+      const [animationClass, setAnimationClass] = useState('page-fade-in');
+
+      const [completedServices, setCompletedServices] = useState([]);
+
+      const [photographyOrder, setPhotographyOrder] = useState({
+        peopleCount: '1-2',
+        normalPictures: 0,
+        expressPictures: { '24hrs': 0, '12hrs': 0, '6hrs': 0 },
+      });
+
+      const [reelsOrder, setReelsOrder] = useState({
+        basic: false, standard: false, premium: false,
+      });
+
+      const [portraitsOrder, setPortraitsOrder] = useState({
+        a3: { quantity: 0 }, a2: { quantity: 0 }, a1: { quantity: 0 }, a0: { quantity: 0 },
+      });
+
+      const handleNavigate = (newPage) => {
+        const mainContainer = document.getElementById('main-scroll-container');
+        if (page === newPage) {
+          if (mainContainer) {
+            mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+          return;
+        }
+
+        setAnimationClass('page-fade-out');
+
+        setTimeout(() => {
+          setPage(newPage);
+          if (mainContainer) {
+            mainContainer.scrollTo(0, 0);
+          }
+          setAnimationClass('page-fade-in');
+        }, 300);
+      };
+
+      const scrollToTop = () => {
+        const mainContainer = document.getElementById('main-scroll-container');
+        if (mainContainer) {
+          mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      };
+
+      const handlePhotographyComplete = () => {
+        const totalExpress = Object.values(photographyOrder.expressPictures).reduce((a, b) => a + b, 0);
+        if (photographyOrder.normalPictures > 0 || totalExpress > 0) {
+          if (!completedServices.includes('photography')) {
+            setCompletedServices(prev => [...prev, 'photography']);
+          }
+        } else {
+          // If no pictures are selected, we still might have a valid order (session only)
+          // Let's add it if it's not there, assuming checkout means confirmation
+          if (!completedServices.includes('photography')) {
+            setCompletedServices(prev => [...prev, 'photography']);
+          }
+        }
+        handleNavigate(Page.Services);
+      };
+
+      const handleReelsComplete = () => {
+        if (reelsOrder.basic || reelsOrder.standard || reelsOrder.premium) {
+          if (!completedServices.includes('reels')) {
+            setCompletedServices(prev => [...prev, 'reels']);
+          }
+        } else {
+          setCompletedServices(prev => prev.filter(s => s !== 'reels'));
+        }
+        handleNavigate(Page.Services);
+      };
+
+      const handlePortraitsComplete = () => {
+        const totalPortraits = Object.values(portraitsOrder).reduce((sum, item) => sum + item.quantity, 0);
+        if (totalPortraits > 0) {
+          if (!completedServices.includes('portraits')) {
+            setCompletedServices(prev => [...prev, 'portraits']);
+          }
+        } else {
+          setCompletedServices(prev => prev.filter(s => s !== 'portraits'));
+        }
+        handleNavigate(Page.Services);
+      };
+
+      const renderPage = () => {
+        switch (page) {
+          case Page.Welcome: return <WelcomePage onNavigate={handleNavigate} />;
+          case Page.Home: return <HomePage onNavigate={handleNavigate} />;
+          case Page.Services:
+            return <ServicesPage
+              onNavigate={handleNavigate}
+              completedServices={completedServices}
+              orders={{ photographyOrder, reelsOrder, portraitsOrder }}
+            />;
+          case Page.About: return <AboutPage />;
+          case Page.Photography:
+            return <PhotographyBookingPage
+              order={photographyOrder}
+              setOrder={setPhotographyOrder}
+              onComplete={handlePhotographyComplete}
+            />;
+          case Page.Reels:
+            return <ReelsBookingPage
+              order={reelsOrder}
+              setOrder={setReelsOrder}
+              onComplete={handleReelsComplete}
+            />;
+          case Page.Portraits:
+            return <PortraitsBookingPage
+              order={portraitsOrder}
+              setOrder={setPortraitsOrder}
+              onComplete={handlePortraitsComplete}
+            />;
+          default: return <WelcomePage onNavigate={handleNavigate} />;
+        }
+      };
+
+      if (page === Page.Welcome) {
+        return (
+          <div className={`h-full ${animationClass}`}>
+            <WelcomePage onNavigate={handleNavigate} />
+          </div>
+        );
+      }
+
+      const showNavBar = [Page.Home, Page.Services, Page.About].includes(page);
+      const showBackButton = [Page.Photography, Page.Reels, Page.Portraits].includes(page);
+      const showFooter = [Page.Home, Page.Services, Page.About].includes(page);
+
+      return (
+        <div className="flex w-full min-h-screen bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white transition-colors duration-300">
+          <SideNavBar currentPage={page} onNavigate={handleNavigate} />
+          <div className="relative flex-1 flex flex-col">
+            <TopHeader onNavigate={handleNavigate} onTitleClick={scrollToTop} />
+            <main id="main-scroll-container" className="flex-1 overflow-y-auto">
+              <div className={`pb-32 lg:pb-10 p-4 sm:p-8 md:p-10 relative ${animationClass}`}>
+                {showBackButton && (
+                  <button
+                    onClick={() => handleNavigate(Page.Services)}
+                    className="absolute top-8 left-8 w-12 h-12 rounded-full flex items-center justify-center text-zinc-800 dark:text-white bg-zinc-200/50 dark:bg-black/30 backdrop-blur-md hover:bg-zinc-300/50 dark:hover:bg-black/50 transition-colors z-50"
+                    aria-label="Go back to services"
+                  >
+                    <i className="fas fa-arrow-left text-lg"></i>
+                  </button>
+                )}
+                {renderPage()}
+              </div>
+              {showFooter && <Footer onNavigate={handleNavigate} />}
+            </main>
+            <div className="lg:hidden">
+              {showNavBar && <BottomNavBar currentPage={page} onNavigate={handleNavigate} />}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+
+    // --- RENDER APP ---
+    const rootElement = document.getElementById('root');
+    if (!rootElement) {
+      throw new Error("Could not find root element to mount to");
+    }
+
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      <React.StrictMode>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </React.StrictMode>
+    );
+
+  </script>
+</body>
+
+</html>
